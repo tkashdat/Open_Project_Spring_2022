@@ -1,0 +1,327 @@
+---
+title: 'ICU Mortality Prediction'
+output:
+  html_document:
+    df_print: paged
+    header-includes: \usepackage{color}
+    toc: yes
+  html_notebook:
+    theme: united
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# 1.0 Introduction and Background
+
+This report was prepared by: 
+
+* Kristin Bennett
+* M. Ridwan Al Iqbal
+* John Erickson
+* Andrew Yale
+
+This report predicts ICU mortality using two different logistic regression functions.
+   
+This report is generated from an R Markdown file that includes all the R code necessary to produce the results described and embedded in the report.  Code blocks can be suppressed from output for readability using the command code `{R,  echo=show}` in the code block header. If `show <- FALSE` the code block will be suppressed; if `show <- TRUE` then the code will be show. 
+
+```{r}
+# Set to True to Show R code.  Set to False to supress R codes 
+show<-TRUE
+```
+
+Executing of this R notebook requires some subset of the following packages:
+
+* `ggplot2`
+* `dplyr`
+* `knitr`
+* `xtable`
+* `caret`
+* `reshape2`
+* `gridExtra`
+* `MASS`
+
+These will be installed and loaded as necessary (code suppressed). 
+
+```{r, include=FALSE}
+# These will install required packages if they are not already installed
+if (!require("ggplot2")) {
+   install.packages("ggplot2")
+   library(ggplot2)
+}
+if (!require("dplyr")) {
+   install.packages("dplyr")
+   library(dplyr)
+}
+if (!require("knitr")) {
+   install.packages("knitr")
+   library(knitr)
+}
+if (!require("xtable")) {
+   install.packages("xtable")
+   library(xtable)
+}
+if (!require("caret")) {
+   install.packages("caret")
+   library(caret)
+}
+if (!require("reshape2")){
+  install.packages("reshape2")
+   library(reshape2)
+} 
+if (!require("gridExtra")){
+  install.packages("gridExtra")
+   library(gridExtra)
+} 
+if (!require("MASS")){
+  install.packages("MASS")
+   library(MASS)
+} 
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+# 2.0 Introduction 
+
+This study examines an ICU dataset, creating a model to predict a patient's likelihood of dying in the ICU. The workflow escribed here cleans the data and then randomly divides it into training (75%) and  testing (25%) sets. Two predictive models are then created; the first is logistic regression using default settings and 0.5 threshold; the second is logistic regression using the default settings with a 0.2 prediction threshold. 
+
+# 3.0 Data Cleaning and Description
+
+To clean the data we:
+
+* Drop columns that should not be used in the problem, including: ID Numbers, dates, and LOS
+* Drop constant columns
+* Convert the response variable DIED to a factor
+* Remove subjects with missing data
+* NOTE: we don't scale data since scaling isn't needed for logistic regression
+
+We start by reading in the data:
+
+```{r, echo=show}
+# Read in data
+ICUdataorig <- read.csv("mimic_synthetic_train.csv", sep=" ", header = FALSE)
+DIED<- read.csv("mimic_synthetic_train_labels.csv", sep=" ", header = FALSE)
+feat_names <- read.csv("mimic_synthetic_feat.csv", sep=" ", header = FALSE)
+ICUdataorig <- ICUdataorig[,-1]
+names(ICUdataorig) <- t(feat_names)
+```
+
+Next, we perform the cleaning operations described above:
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# checking the original number of columns, output in console
+print(paste('Original number of columns',ncol(ICUdataorig)))
+
+# Remove constant columns by checking if the max value is equivalent to the min value
+remove_cols <- !apply(ICUdataorig, MARGIN = 2, function(x) max(x, na.rm = TRUE) == min(x, na.rm = TRUE))
+ICUdata <- ICUdataorig[, remove_cols]
+
+# checking the final number of columns and rows
+print(paste('Final number of columns',ncol(ICUdata)))
+print(paste('Final number of rows',nrow(ICUdata)))
+
+# Drop the ID, date features, and some challenging factors like ethnicity in col 1 through 9 and 62
+excludes <- c(1:9)#,62)
+
+ICUdata <- ICUdata[,-excludes]
+compl = complete.cases(ICUdata)
+ICUdata <- ICUdata[compl,]; # choose only rows with complete data
+ICUdata$DIED<-as.factor(DIED$V1[compl]) 
+  
+# Look at the factor variables
+summary(Filter(is.factor, ICUdata))
+
+# Look at a few numeric variables
+summary(Filter(is.numeric, ICUdata[,1:8]))
+
+```
+
+# 4.0  Experimental Design
+To prepare for generating the predictive models, the data set is randomly divided into a set consisting of 75% training data and 25% testing data.
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+## set the seed to make your partition reproducible
+## ALWAYS set the seed!
+set.seed(101)
+
+# define a 75%/25% train/test split of the dataset using caret
+train_ind <- createDataPartition(ICUdata$DIED, p=0.75, list=FALSE)
+
+## Create Train and Test Sets
+train <- ICUdata[train_ind, ]
+test <- ICUdata[-train_ind, ]
+```
+
+# 5.0 Construct Two Different Predictive Models 
+
+Logistic regression is trained using all of the data:
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Train the logistic regression model
+logit_mod2 <- glm(DIED ~ . , data = train, family = "binomial")
+pred <- predict(logit_mod2, newdata=test, type="response")
+
+# format columns to look nice
+lm2.df <- as.data.frame(xtable(logit_mod2))
+for (i in 1:nrow(lm2.df)){
+  for (j in 1:ncol(lm2.df)){
+    lm2.df[i,j] <- format(as.numeric(lm2.df[i,j]), digits=4)
+  }
+}
+
+
+# Look at the importance of the features in the model
+kable(lm2.df)
+```
+# Checking the Accuracy of the Prediction
+
+The results are evaluated on the training and testing sets using confusionMatrix in caret. See 
+https://www.rdocumentation.org/packages/caret/versions/6.0-80/topics/confusionMatrix for an explanation of all the statistics used to evaluate the function. Note that Balanced Accuracy is the one used in the contest.
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Predict the training data
+predtrain = predict(logit_mod2, newdata=train, type="response")
+# Assign labels.   Note that a lower cut-off is used since the class is rare.
+cutoff<-0.5
+predtrain1 <- ifelse(predtrain > cutoff,1,0)
+
+train1_res<-confusionMatrix(as.factor(predtrain1),positive="1",train$DIED)
+print('Training Result for Logistic Regression 0.5 threshold')
+print(train1_res)
+print(train1_res$byClass["F1"])
+
+## Testing
+predtest = predict(logit_mod2, newdata=test, type="response")
+predtest1 <- ifelse(predtest > cutoff,1,0)
+
+test1_res<-confusionMatrix(as.factor(predtest1),positive="1",test$DIED)
+print('Testing Result for Logistic Regression 0.5 threshold')
+print(test1_res)
+print(test1_res$byClass["F1"])
+```
+
+Here we create the result using the threshold = 0.2:
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Predict the training data
+# We don't need to recalculate predtrain since the same logistic regression function is used.
+# Assign labels. Note that a lower cut-off is used since the class is rare.
+cutoff<-0.2
+predtrain2 <- ifelse(predtrain > cutoff,1,0)
+
+train2_res<-confusionMatrix(as.factor(predtrain2),positive="1",train$DIED)
+print('Training Result for Logistic Regression 0.5 threshold')
+print(train2_res)
+print(train2_res$byClass["F1"])
+
+## Testing
+# We don't need to recalculate predtest since the same logistic regression function is used.
+predtest2 <- ifelse(predtest > cutoff,1,0)
+
+test2_res<-confusionMatrix(as.factor(predtest2),positive="1",test$DIED)
+print('Testing Result for Logistic Regression 0.5 threshold')
+print(test2_res)
+print(test2_res$byClass["F1"])
+```
+
+
+## Prediction Accuracy for cutoff 0.2
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Predict the training data
+# Use the same model but a differnt threshold.
+#cutoff<-0.2
+#pred <- ifelse(predtrain > cutoff,1,0)
+#train2_res <- confusionMatrix(as.factor(pred), train$DIED)
+
+## Testing
+#pred <- ifelse(predtest > cutoff,1,0)
+
+#test2_res<-confusionMatrix(as.factor(pred), test$DIED)
+
+```
+
+# Analyzing the Results
+
+The following table compares the results of logistic regression on the ICU data using thresholds of 0.5 and 0.2.
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Load up the results in a data frame and display using kable
+
+results <- data.frame(matrix(ncol = 6, nrow = 2))
+x <- c("Method", "data","acc","bal acc","sensitivity","specificity")
+colnames(results) <- x
+results[1,]<-c("LR-0.5",
+               "train",
+               format(as.numeric(train1_res$overall["Accuracy"]), digits = 4),
+               format(as.numeric(train1_res$byClass["Balanced Accuracy"]), digits = 4),
+               format(as.numeric(train1_res$byClass["Sensitivity"]), digits = 4),
+               format(as.numeric(train1_res$byClass["Specificity"]), digits = 4))
+results[2,]<-c("LR-0.5",
+               "test",
+               format(as.numeric(test1_res$overall["Accuracy"]), digits = 4),
+               format(as.numeric(test1_res$byClass["Balanced Accuracy"]), digits = 4),
+               format(as.numeric(test1_res$byClass["Sensitivity"]), digits = 4),
+               format(as.numeric(test1_res$byClass["Specificity"]), digits = 4))
+results[3,]<-c("LR-0.2",
+               "train",
+               format(as.numeric(train2_res$overall["Accuracy"]), digits = 4),
+               format(as.numeric(train2_res$byClass["Balanced Accuracy"]), digits = 4),
+               format(as.numeric(train2_res$byClass["Sensitivity"]), digits = 4),
+               format(as.numeric(train2_res$byClass["Specificity"]), digits = 4))
+results[4,]<-c("LR-0.2",
+               "test",
+               format(as.numeric(test2_res$overall["Accuracy"]), digits = 4),
+               format(as.numeric(test2_res$byClass["Balanced Accuracy"]), digits = 4),
+               format(as.numeric(test2_res$byClass["Sensitivity"]), digits = 4),
+               format(as.numeric(test2_res$byClass["Specificity"]), digits = 4))
+
+kable(results,digits=4,caption="Prediction Results of 2 Methods")
+
+```
+
+We conclude that changing the threshold improved the balanced accuracy and produced a better balance of specificity and sensitivity, thus we recommend the second model.
+
+
+# 6.0 Preparing for submission to the challenge
+
+## Train the best model on all of the training data
+Using our best method we will train our model using all of the available training data.
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# Train the logistic regression model
+logit_mod_final <- glm(DIED ~ . , data = ICUdata, family = "binomial")
+```
+
+## Predict with the new model
+Now using the better threshold we will predict the final classes for the test data.
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# Prep the test data
+ICUdatatestorig <- read.csv("mimic_synthetic_test.csv", sep=" ")
+ICUdatatestorig <- ICUdatatestorig[,-1]
+names(ICUdatatestorig) <- t(feat_names)
+ICUdatatest <- ICUdatatestorig[, remove_cols]
+ICUdatatest <- ICUdatatest[, -excludes]
+
+# all zeros so wasn't read in as a factor
+#ICUdatatest$Peritonitis <- as.factor(ICUdatatest$Peritonitis) 
+
+# Predict the training data
+predfinal = predict(logit_mod_final, newdata=ICUdatatest, type="response")
+# Assign labels.   Note that a lower cut-off is used since the class is rare.
+cutoff<-0.2
+predfinal <- ifelse(predfinal > cutoff,1,0)
+```
+
+## Export the results
+Now we will export the data into a file that is just our predicted values.
+
+```{r, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# write to file with no row names, col names, or quotes
+write.table(predfinal, file="mimic_synthetic_test.prediction", row.names=FALSE, 
+            col.names=FALSE, quote=FALSE)
+```
