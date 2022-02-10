@@ -29,9 +29,16 @@ labels = pd.read_csv('mimic_synthetic_train_labels.csv', delimiter=' ', header=N
 all_data['DIED'] = labels
 
 # _______________________ Identify constant columns_________________________________
+# non_dups = []
+# for column in all_data:
+#     if all_data[column].astype(str).min() == all_data[column].astype(str).max():
+#         non_dups.append(column)
+#
+# all_data.drop(non_dups, axis=1, inplace=True)
+
 non_dups = []
 for column in all_data:
-    if all_data[column].astype(str).min() == all_data[column].astype(str).max():
+    if all_data[column].unique().size == 1:
         non_dups.append(column)
 
 all_data.drop(non_dups, axis=1, inplace=True)
@@ -40,6 +47,13 @@ all_data.drop(non_dups, axis=1, inplace=True)
 all_data = all_data.iloc[:,4:]
 
 # _______________________ Just the categorical _________________________________
+categoricals =  []
+for column in all_data:
+    if isinstance(all_data[column][0], str):
+        categoricals.append(column)
+
+cats = all_data[categoricals]
+all_data.drop(cats, axis=1, inplace=True)
 
 #____________________________ One-hot encoding_________________________________
 
