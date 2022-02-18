@@ -27,6 +27,7 @@ all_data.set_axis(col_names, axis=1, inplace=True)
 
 labels = pd.read_csv('mimic_synthetic_train_labels.csv', delimiter=' ', header=None)
 all_data['DIED'] = labels
+all_data.fillna('NA', inplace=True)
 
 # _______________________ Identify constant columns_________________________________
 # non_dups = []
@@ -56,7 +57,18 @@ cats = all_data[categoricals]
 all_data.drop(cats, axis=1, inplace=True)
 
 #____________________________ One-hot encoding_________________________________
+from sklearn.preprocessing import OneHotEncoder
 
+# Load encoder
+enc = OneHotEncoder(handle_unknown='ignore')
+# Fit encoding
+enc.fit(cats)
+# Make conversion
+feat = enc.transform(cats).toarray()
+feat_names = enc.get_feature_names()
+cat_data = pd.DataFrame(feat, columns=feat_names)
+
+all_data = pd.concat([cat_data,all_data], axis=1)
 
 #_______________________test_train split_________________________________________
 
