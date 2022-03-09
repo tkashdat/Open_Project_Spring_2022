@@ -16,7 +16,7 @@
 # BUGS TO FIX:
 #
 # ----------------------------------------------------------------------------------------------------------------------
-import numpy as np
+# import numpy as np
 import pandas as pd
 
 # _______________________ Import __________________________________________________________
@@ -48,7 +48,7 @@ all_data.drop(non_dups, axis=1, inplace=True)
 all_data = all_data.iloc[:,4:]
 
 # _______________________ Just the categorical _________________________________
-categoricals =  []
+categoricals = []
 for column in all_data:
     if isinstance(all_data[column][0], str):
         categoricals.append(column)
@@ -72,6 +72,9 @@ all_data = pd.concat([cat_data,all_data], axis=1)
 
 #_______________________test_train split_________________________________________
 
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(all_data.iloc[:,:-1], all_data['DIED'], test_size=0.2, random_state=42)
 
 #____________________________ Upsampling _________________________________
 
