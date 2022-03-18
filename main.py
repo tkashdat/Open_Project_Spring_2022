@@ -78,7 +78,15 @@ X_train, X_test, y_train, y_test = train_test_split(all_data.iloc[:,:-1], all_da
 
 #____________________________ Upsampling _________________________________
 
+from sklearn.utils import resample
 
+all_data_train = pd.concat([X_train,y_train], axis=1)
+
+ones = all_data_train[all_data_train['DIED'] == 1]
+zeros = all_data_train[all_data_train['DIED'] == 0]
+
+upsampled = resample(ones, n_samples=len(zeros), replace=True, random_state=42) #ones.resample(len(zeros))#pd.DataFrame(pd.resample(ones, len(zeros)))
+all_data_train = pd.concat([zeros,upsampled], axis=0,ignore_index=True)
 
 # _______________________ Modeling _________________________________
 
