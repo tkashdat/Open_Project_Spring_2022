@@ -111,20 +111,20 @@ all_data_train = pd.concat([zeros,upsampled], axis=0,ignore_index=True)
 
 from sklearn.neural_network import MLPClassifier
 
-Activation = 'relu' #@param ["relu", "identity", "logistic", "tanh"]
+Activation = 'tanh' #@param ["relu", "identity", "logistic", "tanh"]
 Solver = 'adam' #@param ["adam","lbfgs", "sgd"]
 Maximum_Iterations = 2000 #@param {type:"slider", min:0, max:10000, step:100}
 
 
-NN_classify_model = MLPClassifier(hidden_layer_sizes=(20,10),
+cls = MLPClassifier(hidden_layer_sizes=(100, 20, 10, 5),
                                      activation=Activation,
                                      solver=Solver,
                                      max_iter=Maximum_Iterations)
 
 
-NN_classify_model.fit(all_data_train.iloc[:,:-1], all_data_train['DIED'])
+cls.fit(all_data_train.iloc[:,:-1], all_data_train['DIED'])
 
-preds = NN_classify_model.predict(X_test)
+preds = cls.predict(X_test)
 
 from sklearn.metrics import f1_score
 
@@ -174,7 +174,7 @@ test_data = pd.concat([cat_data,test_data], axis=1)
 test_data = test_data.astype('float')
 
 #dtest = xgb.DMatrix(test_data)
-preds = NN_classify_model.predict(test_data)
+preds = cls.predict(test_data)
 np.savetxt("mimic_synthetic_test_prediction.csv", preds, delimiter=",")
 
 
