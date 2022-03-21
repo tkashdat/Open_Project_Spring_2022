@@ -16,18 +16,19 @@
 # BUGS TO FIX:
 #
 # ----------------------------------------------------------------------------------------------------------------------
-# import numpy as np
+import numpy as np
 import pandas as pd
 
 # _______________________ Import __________________________________________________________
-all_data = pd.read_csv('mimic_synthetic_train.csv', delimiter=' ', header=None)
+all_data = pd.read_csv('mimic_synthetic_train.csv', delimiter=' ', header=None,decimal='.')
 col_names = pd.read_csv('mimic_synthetic_feat.csv', delimiter=' ', header=None)
 all_data = all_data.iloc[:,1:]
 all_data.set_axis(col_names, axis=1, inplace=True)
 
 labels = pd.read_csv('mimic_synthetic_train_labels.csv', delimiter=' ', header=None)
 all_data['DIED'] = labels
-all_data.fillna('NA', inplace=True)
+all_data.fillna('0', inplace=True)
+#all_data = all_data.dropna()
 
 # _______________________ Identify constant columns_________________________________
 # non_dups = []
@@ -56,6 +57,8 @@ for column in all_data:
 cats = all_data[categoricals]
 all_data.drop(cats, axis=1, inplace=True)
 
+#categorical_variables = all_data.select_dtypes(include='O')
+
 #____________________________ One-hot encoding_________________________________
 from sklearn.preprocessing import OneHotEncoder
 
@@ -69,6 +72,8 @@ feat_names = enc.get_feature_names()
 cat_data = pd.DataFrame(feat, columns=feat_names)
 
 all_data = pd.concat([cat_data,all_data], axis=1)
+
+all_data = all_data.astype('float')
 
 #_______________________test_train split_________________________________________
 
@@ -90,21 +95,36 @@ all_data_train = pd.concat([zeros,upsampled], axis=0,ignore_index=True)
 
 # _______________________ Modeling _________________________________
 
-import xgboost as xgb
+#import xgboost as xgb
 
-dtrain = xgb.DMatrix(all_data_train.iloc[:,:-1], enable_categorical=True, label=all_data_train['DIED'])
+#dtrain = xgb.DMatrix(all_data_train.iloc[:,:-1], enable_categorical=True, label=all_data_train['DIED'])
 
-print("Booster parameters")
-param = {'max_depth': 10, 'eta': 0.2, 'objective': 'binary:hinge'}
-param['nthread'] = 4
-param['eval_metric'] = 'auc'
-print("train xgboost")
-num_round = 20
-cls = xgb.train(param, dtrain, num_round)
+#print("Booster parameters")
+#param = {'max_depth': 10, 'eta': 0.2, 'objective': 'binary:hinge'}
+#param['nthread'] = 4
+#param['eval_metric'] = 'auc'
+#print("train xgboost")
+#num_round = 20
+#cls = xgb.train(param, dtrain, num_round)
 #bst.save_model('xgboost.model')
-dtest = xgb.DMatrix(X_test)
+#dtest = xgb.DMatrix(X_test)
 
-preds = cls.predict(dtest)
+from sklearn.neural_network import MLPClassifier
+
+Activation = 'relu' #@param ["relu", "identity", "logistic", "tanh"]
+Solver = 'adam' #@param ["adam","lbfgs", "sgd"]
+Maximum_Iterations = 2000 #@param {type:"slider", min:0, max:10000, step:100}
+
+
+NN_classify_model = MLPClassifier(hidden_layer_sizes=(20,10),
+                                     activation=Activation,
+                                     solver=Solver,
+                                     max_iter=Maximum_Iterations)
+
+
+NN_classify_model.fit(all_data_train.iloc[:,:-1], all_data_train['DIED'])
+
+preds = NN_classify_model.predict(X_test)
 
 from sklearn.metrics import f1_score
 
@@ -122,9 +142,40 @@ acc = balanced_accuracy_score(y_test, preds)
 print(acc)
 
 
-xgb.plot_importance(cls, max_num_features=80,grid=False)
+#xgb.plot_importance(cls, max_num_features=80,grid=False)
 
 #______________________________________ Predict test case & save _________________________________________
+test_data = pd.read_csv('mimic_synthetic_test.csv', delimiter=' ', header=None)
+col_names = pd.read_csv('mimic_synthetic_feat.csv', delimiter=' ', header=None)
+test_data = test_data.iloc[:,1:]
+test_data.set_axis(col_names, axis=1, inplace=True)
+test_data.fillna('0', inplace=True)
+
+test_data.drop(non_dups, axis=1, inplace=True)
+
+# _______________________ Drop non-informative _________________________________
+test_data = test_data.iloc[:,4:]
+
+# _______________________ Just the categorical _________________________________
+
+cats = test_data[categoricals]
+test_data.drop(cats, axis=1, inplace=True)
+
+#____________________________ One-hot encoding_________________________________
+
+feat = enc.transform(cats).toarray()
+feat_names = enc.get_feature_names()
+cat_data = pd.DataFrame(feat, columns=feat_names)
+
+
+#______________________________ Make prediction_________________________________
+test_data = pd.concat([cat_data,test_data], axis=1)
+
+test_data = test_data.astype('float')
+
+#dtest = xgb.DMatrix(test_data)
+preds = NN_classify_model.predict(test_data)
+np.savetxt("mimic_synthetic_test_prediction.csv", preds, delimiter=",")
 
 
 
