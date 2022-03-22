@@ -109,18 +109,20 @@ all_data_train = pd.concat([zeros,upsampled], axis=0,ignore_index=True)
 #bst.save_model('xgboost.model')
 #dtest = xgb.DMatrix(X_test)
 
-from sklearn.neural_network import MLPClassifier
+#from sklearn.neural_network import MLPClassifier
 
-Activation = 'tanh' #@param ["relu", "identity", "logistic", "tanh"]
-Solver = 'adam' #@param ["adam","lbfgs", "sgd"]
-Maximum_Iterations = 2000 #@param {type:"slider", min:0, max:10000, step:100}
+#Activation = 'identity' #@param ["relu", "identity", "logistic", "tanh"]
+#Solver = 'adam' #@param ["adam","lbfgs", "sgd"]
+#Maximum_Iterations = 2000 #@param {type:"slider", min:0, max:10000, step:100}
 
+#cls = MLPClassifier(hidden_layer_sizes=(100, 50, 20, 10),
+#                                     activation=Activation,
+#                                     solver=Solver,
+#                                     max_iter=Maximum_Iterations)
 
-cls = MLPClassifier(hidden_layer_sizes=(100, 20, 10, 5),
-                                     activation=Activation,
-                                     solver=Solver,
-                                     max_iter=Maximum_Iterations)
+from sklearn.svm import NuSVC
 
+cls = NuSVC()
 
 cls.fit(all_data_train.iloc[:,:-1], all_data_train['DIED'])
 
