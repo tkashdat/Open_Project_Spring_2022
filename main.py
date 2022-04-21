@@ -122,7 +122,10 @@ all_data_train = pd.concat([zeros,upsampled], axis=0,ignore_index=True)
 
 from sklearn.svm import NuSVC
 
-cls = NuSVC()
+cls = NuSVC(verbose=True) # best performance thus far
+
+#from sklearn.svm import SVC
+#cls = SVC(kernel='rbf', verbose=True)
 
 cls.fit(all_data_train.iloc[:,:-1], all_data_train['DIED'])
 
